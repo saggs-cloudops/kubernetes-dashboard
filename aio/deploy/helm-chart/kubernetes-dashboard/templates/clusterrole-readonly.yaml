@@ -34,6 +34,7 @@ rules:
       - nodes
       - persistentvolumeclaims
       - persistentvolumes
+      - customresourcedefinitions
     verbs:
       - get
       - list
