@@ -21,6 +21,14 @@ metadata:
 {{ include "kubernetes-dashboard.labels" . | indent 4 }}
 rules:
   - apiGroups:
+      - "apiextensions.k8s.io"
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - ""
     resources:
       - configmaps
@@ -34,7 +42,6 @@ rules:
       - nodes
       - persistentvolumeclaims
       - persistentvolumes
-      - customresourcedefinitions
     verbs:
       - get
       - list
