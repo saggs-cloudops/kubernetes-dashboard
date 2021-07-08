@@ -47,7 +47,7 @@ jobs:
       - name: Setup NodeJS
         uses: actions/setup-node@v2.1.2
         with:
-          node-version: 12.6.0
+          node-version: 14.16.1
 
       - name: Cache Node Modules
         uses: actions/cache@v2
@@ -60,7 +60,7 @@ jobs:
       - name: Install Dependencies
         shell: bash
         run: |
-          [ ! -d "node_modules" ] && npm ci || node aio/scripts/version.js && go mod download
+          [ ! -d "node_modules" ] && npm ci || node aio/scripts/version.mjs && go mod download
 
       - name: Docker Login
         env:
@@ -99,7 +99,7 @@ jobs:
       - name: Setup NodeJS
         uses: actions/setup-node@v2.1.2
         with:
-          node-version: 12.6.0
+          node-version: 14.16.1
 
       - name: Cache Node Modules
         uses: actions/cache@v2
@@ -112,7 +112,7 @@ jobs:
       - name: Install Dependencies
         shell: bash
         run: |
-          [ ! -d "node_modules" ] && npm ci || node aio/scripts/version.js && go mod download
+          [ ! -d "node_modules" ] && npm ci || node aio/scripts/version.mjs && go mod download
 
       - name: Docker Login
         env:

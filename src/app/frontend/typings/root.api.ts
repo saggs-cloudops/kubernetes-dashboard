@@ -12,16 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Shared resource types
-import {KdError} from '@api/root.ui';
+import {KdError} from '@api/root.shared';
 import {PersistentVolumeSource} from '@api/volume.api';
-import {SecurityContext} from '@angular/core';
-
-export enum SupportedResources {
-  ConfigMap = 'ConfigMap',
-  Secret = 'Secret',
-  PersistentVolumeClaim = 'PersistentVolumeClaim',
-}
 
 export interface TypeMeta {
   kind: string;
@@ -244,6 +236,7 @@ export interface CronJob extends Resource {
   suspend: boolean;
   active: number;
   lastSchedule: string;
+  containerImages: string[];
 }
 
 export interface CRD extends Resource {
@@ -305,6 +298,9 @@ export interface Event extends Resource {
   sourceComponent: string;
   sourceHost: string;
   object: string;
+  objectKind?: string;
+  objectName?: string;
+  objectNamespace?: string;
   count: number;
   firstSeen: string;
   lastSeen: string;
@@ -322,6 +318,7 @@ export interface HorizontalPodAutoscaler extends Resource {
 
 export interface Ingress extends Resource {
   endpoints: Endpoint[];
+  hosts: string[];
 }
 
 export interface Job extends Resource {
@@ -362,6 +359,8 @@ export interface Pod extends Resource {
   metrics: PodMetrics;
   warnings: Event[];
   nodeName: string;
+  serviceAccountName: string;
+  containerImages: string[];
 }
 
 export interface PodContainer {
@@ -531,9 +530,18 @@ export interface IngressSpecTLS {
 }
 
 export interface IngressBackend {
-  serviceName?: string;
-  servicePort?: string | number;
+  service?: IngressBackendService;
   resource?: ResourceRef;
+}
+
+export interface IngressBackendService {
+  name: string;
+  port: IngressBackendServicePort;
+}
+
+export interface IngressBackendServicePort {
+  name?: string;
+  number?: number;
 }
 
 export interface IngressSpecRule {
@@ -642,6 +650,7 @@ export interface PodDetail extends ResourceDetail {
   imagePullSecrets: LocalObjectReference[];
   eventList: EventList;
   persistentVolumeClaimList: PersistentVolumeClaimList;
+  securityContext: PodSecurityContext;
 }
 
 export interface LocalObjectReference {
@@ -803,17 +812,19 @@ export interface Condition {
 }
 
 export interface ContainerStateWaiting {
-  reason: string;
+  reason?: string;
+  message?: string;
 }
 
 export interface ContainerStateRunning {
-  startedAt: string;
+  startedAt?: string;
 }
 
 export interface ContainerStateTerminated {
-  reason: string;
-  signal: number;
   exitCode: number;
+  reason?: string;
+  message?: string;
+  signal?: number;
 }
 
 export interface ContainerState {
@@ -872,20 +883,77 @@ export interface Container {
   args: string[];
   volumeMounts: VolumeMounts[];
   securityContext: ContainerSecurityContext;
+  status: ContainerStatus;
+  livenessProbe: Probe;
+  readinessProbe: Probe;
+  startupProbe: Probe;
 }
 
-export interface ContainerSecurityContext {
-  capabilities?: Capabilities;
-  privileged?: boolean;
+export interface Probe {
+  httpGet?: ProbeHttpGet;
+  tcpSocket?: ProbeTcpSocket;
+  exec?: ProbeExec;
+  initialDelaySeconds?: number;
+  timeoutSeconds?: number;
+  periodSeconds?: number;
+  successThreshold?: number;
+  failureThreshold?: number;
+  terminationGracePeriodSeconds?: number;
+}
+
+export interface ProbeHttpGet {
+  path?: string;
+  port: string | number;
+  host?: string;
+  scheme?: string;
+  httpHeaders?: string[];
+}
+
+export interface ProbeTcpSocket {
+  port: string | number;
+  host?: string;
+}
+
+export interface ProbeExec {
+  command?: string[];
+}
+
+export interface ContainerStatus {
+  name: string;
+  state: ContainerState;
+  lastTerminationState: ContainerState;
+  ready: boolean;
+  restartCount: number;
+  started?: boolean;
+}
+
+export interface ISecurityContext {
   seLinuxOptions?: SELinuxOptions;
   windowsOptions?: WindowsSecurityContextOptions;
   runAsUser?: number;
   runAsGroup?: number;
   runAsNonRoot?: boolean;
+  seccompProfile?: SeccompProfile;
+}
+
+export interface ContainerSecurityContext extends ISecurityContext {
+  capabilities?: Capabilities;
+  privileged?: boolean;
   readOnlyRootFilesystem?: boolean;
   allowPrivilegeEscalation?: boolean;
   procMount?: string; // ProcMountType;
-  seccompProfile?: SeccompProfile;
+}
+
+export interface PodSecurityContext extends ISecurityContext {
+  fsGroup?: number;
+  fsGroupChangePolicy?: string;
+  supplementalGroups?: number[];
+  sysctls?: Sysctl[];
+}
+
+export interface Sysctl {
+  name: string;
+  value: string;
 }
 
 export interface Capabilities {
@@ -1111,6 +1179,11 @@ export interface LogLineReference {
   lineNum: number;
 }
 
+export type LogOptions = {
+  previous: boolean;
+  timestamps: boolean;
+};
+
 export interface Protocols {
   protocols: string[];
 }
@@ -1143,6 +1216,8 @@ export interface GlobalSettings {
   logsAutoRefreshTimeInterval: number;
   resourceAutoRefreshTimeInterval: number;
   disableAccessDeniedNotifications: boolean;
+  defaultNamespace: string;
+  namespaceFallbackList: string[];
 }
 
 export interface PinnedResource {

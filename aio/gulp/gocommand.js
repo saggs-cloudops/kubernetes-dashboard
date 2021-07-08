@@ -20,7 +20,7 @@ import lodash from 'lodash';
 import q from 'q';
 import semver from 'semver';
 
-import conf from './conf';
+import conf from './conf.js';
 
 // Add the project's required go tools to the PATH.
 const devPath = `${process.env.PATH}:${conf.paths.goTools}/bin`;
@@ -33,7 +33,7 @@ const env = lodash.merge(process.env, {PATH: devPath});
 /**
  * Minimum required Go Version
  */
-const minGoVersion = '1.12.6';
+const minGoVersion = '1.15.1';
 
 /**
  * Spawns a Go process after making sure all Go prerequisites are

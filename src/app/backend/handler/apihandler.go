@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/kubernetes/dashboard/src/app/backend/resource/networkpolicy"
 
 	"github.com/kubernetes/dashboard/src/app/backend/handler/parser"
@@ -271,6 +273,23 @@ func CreateHTTPAPIHandler(iManager integration.IntegrationManager, cManager clie
 		apiV1Ws.GET("/deployment/{namespace}/{deployment}/newreplicaset").
 			To(apiHandler.handleGetDeploymentNewReplicaSet).
 			Writes(replicaset.ReplicaSet{}))
+	apiV1Ws.Route(
+		apiV1Ws.PUT("/{kind}/{namespace}/{deployment}/pause").
+			To(apiHandler.handleDeploymentPause).
+			Writes(deployment.DeploymentDetail{}))
+	apiV1Ws.Route(
+		apiV1Ws.PUT("/{kind}/{namespace}/{deployment}/rollback").
+			To(apiHandler.handleDeploymentRollback).
+			Reads(deployment.RolloutSpec{}).
+			Writes(deployment.RolloutSpec{}))
+	apiV1Ws.Route(
+		apiV1Ws.PUT("/{kind}/{namespace}/{deployment}/restart").
+			To(apiHandler.handleDeploymentRestart).
+			Writes(deployment.RolloutSpec{}))
+	apiV1Ws.Route(
+		apiV1Ws.PUT("/{kind}/{namespace}/{deployment}/resume").
+			To(apiHandler.handleDeploymentResume).
+			Writes(deployment.DeploymentDetail{}))
 
 	apiV1Ws.Route(
 		apiV1Ws.PUT("/scale/{kind}/{namespace}/{name}/").
@@ -392,6 +411,15 @@ func CreateHTTPAPIHandler(iManager integration.IntegrationManager, cManager clie
 	apiV1Ws.Route(
 		apiV1Ws.GET("/namespace/{name}/event").
 			To(apiHandler.handleGetNamespaceEvents).
+			Writes(common.EventList{}))
+
+	apiV1Ws.Route(
+		apiV1Ws.GET("/event").
+			To(apiHandler.handleGetEventList).
+			Writes(common.EventList{}))
+	apiV1Ws.Route(
+		apiV1Ws.GET("/event/{namespace}").
+			To(apiHandler.handleGetEventList).
 			Writes(common.EventList{}))
 
 	apiV1Ws.Route(
@@ -1253,6 +1281,79 @@ func (apiHandler *APIHandler) handleDeployFromFile(request *restful.Request, res
 	})
 }
 
+func (apiHandler *APIHandler) handleDeploymentPause(request *restful.Request, response *restful.Response) {
+	k8sClient, err := apiHandler.cManager.Client(request)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+
+	namespace := request.PathParameter("namespace")
+	name := request.PathParameter("deployment")
+	deploymentSpec, err := deployment.PauseDeployment(k8sClient, namespace, name)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+	response.WriteHeaderAndEntity(http.StatusOK, deploymentSpec)
+}
+
+func (apiHandler *APIHandler) handleDeploymentRollback(request *restful.Request, response *restful.Response) {
+	k8sClient, err := apiHandler.cManager.Client(request)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+
+	rolloutSpec := new(deployment.RolloutSpec)
+	if err := request.ReadEntity(rolloutSpec); err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+	namespace := request.PathParameter("namespace")
+	name := request.PathParameter("deployment")
+	rolloutSpec, err = deployment.RollbackDeployment(k8sClient, rolloutSpec, namespace, name)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+	response.WriteHeaderAndEntity(http.StatusOK, rolloutSpec)
+}
+
+func (apiHandler *APIHandler) handleDeploymentRestart(request *restful.Request, response *restful.Response) {
+	k8sClient, err := apiHandler.cManager.Client(request)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+
+	namespace := request.PathParameter("namespace")
+	name := request.PathParameter("deployment")
+	rolloutSpec, err := deployment.RestartDeployment(k8sClient, namespace, name)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+	response.WriteHeaderAndEntity(http.StatusOK, rolloutSpec)
+}
+
+func (apiHandler *APIHandler) handleDeploymentResume(request *restful.Request, response *restful.Response) {
+	k8sClient, err := apiHandler.cManager.Client(request)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+
+	namespace := request.PathParameter("namespace")
+	name := request.PathParameter("deployment")
+	deploymentSpec, err := deployment.ResumeDeployment(k8sClient, namespace, name)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+	response.WriteHeaderAndEntity(http.StatusOK, deploymentSpec)
+}
+
 func (apiHandler *APIHandler) handleNameValidity(request *restful.Request, response *restful.Response) {
 	k8sClient, err := apiHandler.cManager.Client(request)
 	if err != nil {
@@ -1814,6 +1915,23 @@ func (apiHandler *APIHandler) handleGetNamespaceEvents(request *restful.Request,
 	name := request.PathParameter("name")
 	dataSelect := parser.ParseDataSelectPathParameter(request)
 	result, err := event.GetNamespaceEvents(k8sClient, dataSelect, name)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+	response.WriteHeaderAndEntity(http.StatusOK, result)
+}
+
+func (apiHandler *APIHandler) handleGetEventList(request *restful.Request, response *restful.Response) {
+	k8sClient, err := apiHandler.cManager.Client(request)
+	if err != nil {
+		errors.HandleInternalError(response, err)
+		return
+	}
+
+	dataSelect := parser.ParseDataSelectPathParameter(request)
+	namespace := parseNamespacePathParameter(request)
+	result, err := event.GetEventList(k8sClient, namespace, dataSelect)
 	if err != nil {
 		errors.HandleInternalError(response, err)
 		return
@@ -2588,16 +2706,19 @@ func (apiHandler *APIHandler) handleLogs(request *restful.Request, response *res
 
 func (apiHandler *APIHandler) handleLogFile(request *restful.Request, response *restful.Response) {
 	k8sClient, err := apiHandler.cManager.Client(request)
+	opts := new(v1.PodLogOptions)
 	if err != nil {
 		errors.HandleInternalError(response, err)
 		return
 	}
+
 	namespace := request.PathParameter("namespace")
 	podID := request.PathParameter("pod")
 	containerID := request.PathParameter("container")
-	usePreviousLogs := request.QueryParameter("previous") == "true"
+	opts.Previous = request.QueryParameter("previous") == "true"
+	opts.Timestamps = request.QueryParameter("timestamps") == "true"
 
-	logStream, err := container.GetLogFile(k8sClient, namespace, podID, containerID, usePreviousLogs)
+	logStream, err := container.GetLogFile(k8sClient, namespace, podID, containerID, opts)
 	if err != nil {
 		errors.HandleInternalError(response, err)
 		return

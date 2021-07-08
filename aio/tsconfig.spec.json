@@ -3,18 +3,12 @@
   "compilerOptions": {
     "outDir": "../out-tsc/spec",
     "baseUrl": "../src/app/frontend",
-    "target": "es5",
-    "types": [
-      "jasmine",
-      "node"
-    ]
+    "module": "CommonJS",
+    "target": "ES2015",
+    "types": ["jest"],
   },
-  "files": [
-    "../src/app/frontend/polyfills.ts"
-  ],
   "include": [
-    "../src/app/frontend/**/*.spec.ts",
-    "../src/app/frontend/**/*.d.ts"
-  ],
-  "lib": ["es2017", "dom"]
+    "./**/*.spec.ts",
+    "./**/*.d.ts",
+  ]
 }

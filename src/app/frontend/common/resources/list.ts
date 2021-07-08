@@ -43,8 +43,27 @@ import {NotificationsService} from '../services/global/notifications';
 import {ParamsService} from '../services/global/params';
 import {KdStateService} from '../services/global/state';
 
+enum SortableColumn {
+  Name = 'name',
+  Created = 'created',
+  Namespace = 'namespace',
+  Status = 'status',
+  FirstSeen = 'firstSeen',
+  LastSeen = 'lastSeen',
+}
+
 @Directive()
 export abstract class ResourceListBase<T extends ResourceList, R extends Resource> implements OnInit, OnDestroy {
+  isLoading = false;
+  totalItems = 0;
+  @Output('onchange') onChange: EventEmitter<OnListChangeEvent> = new EventEmitter();
+  @Input() groupId: string;
+  @Input() hideable = false;
+  @Input() id: string;
+  protected readonly unsubscribe_ = new Subject<void>();
+  protected readonly kdState_: KdStateService;
+  protected readonly settingsService_: GlobalSettingsService;
+  protected readonly namespaceService_: NamespaceService;
   // Base properties
   private readonly actionColumns_: Array<ActionColumnDef<ActionColumn>> = [];
   private readonly data_ = new MatTableDataSource<R>();
@@ -54,24 +73,6 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
   private readonly dynamicColumns_: ColumnWhenCondition[] = [];
   private paramsService_: ParamsService;
   private router_: Router;
-  protected readonly unsubscribe_ = new Subject<void>();
-  protected readonly kdState_: KdStateService;
-  protected readonly settingsService_: GlobalSettingsService;
-  protected readonly namespaceService_: NamespaceService;
-
-  isLoading = false;
-  totalItems = 0;
-
-  get itemsPerPage(): number {
-    return this.settingsService_.getItemsPerPage();
-  }
-
-  @Output('onchange') onChange: EventEmitter<OnListChangeEvent> = new EventEmitter();
-
-  @Input() groupId: string;
-  @Input() hideable = false;
-  @Input() id: string;
-
   // Data select properties
   @ViewChild(MatSort, {static: true}) private readonly matSort_: MatSort;
   @ViewChild(MatPaginator, {static: true}) private readonly matPaginator_: MatPaginator;
@@ -89,6 +90,10 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
     this.paramsService_ = GlobalServicesModule.injector.get(ParamsService);
     this.router_ = GlobalServicesModule.injector.get(Router);
     this.initStateName_(stateName);
+  }
+
+  get itemsPerPage(): number {
+    return this.settingsService_.getItemsPerPage();
   }
 
   ngOnInit(): void {
@@ -191,6 +196,10 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
     return false;
   }
 
+  abstract getResourceObservable(params?: HttpParams): Observable<T>;
+
+  abstract map(value: T): R[];
+
   protected registerActionColumn<C extends ActionColumn>(name: string, component: Type<C>): void {
     this.actionColumns_.push({
       name: `action-${name}`,
@@ -205,6 +214,8 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
       whenCallback,
     } as ColumnWhenCondition);
   }
+
+  protected abstract getDisplayColumns(): string[];
 
   private initStateName_(stateName: string | Observable<string>): void {
     if (isObservable(stateName)) {
@@ -307,7 +318,7 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
   private getSortBy_(): string {
     // Default values.
     let ascending = true;
-    let active = 'created';
+    let active: string = SortableColumn.Created;
 
     if (this.matSort_.direction) {
       ascending = this.matSort_.direction === 'asc';
@@ -317,7 +328,9 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
       active = this.matSort_.active;
     }
 
-    if (active === 'created') {
+    if (
+      [SortableColumn.Created, SortableColumn.FirstSeen, SortableColumn.LastSeen].includes(active as SortableColumn)
+    ) {
       ascending = !ascending;
     }
 
@@ -325,7 +338,7 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
   }
 
   private mapToBackendValue_(sortByColumnName: string): string {
-    return sortByColumnName === 'created' ? 'creationTimestamp' : sortByColumnName;
+    return sortByColumnName === SortableColumn.Created ? 'creationTimestamp' : sortByColumnName;
   }
 
   private onListChange_(data: T): void {
@@ -343,12 +356,6 @@ export abstract class ResourceListBase<T extends ResourceList, R extends Resourc
 
     this.onChange.emit(emitValue);
   }
-
-  protected abstract getDisplayColumns(): string[];
-
-  abstract getResourceObservable(params?: HttpParams): Observable<T>;
-
-  abstract map(value: T): R[];
 }
 
 @Directive()
@@ -356,17 +363,16 @@ export abstract class ResourceListWithStatuses<T extends ResourceList, R extends
   T,
   R
 > {
+  expandedRowKey: string = undefined;
+  hoveredRowKey: string = undefined;
+  protected icon = IconName;
   private readonly bindings_: {[hash: number]: StateBinding<R>} = {};
   private lastHash_: number;
   private readonly unknownStatus: StatusIcon = {
-    iconName: 'help',
-    iconClass: {'kd-help': true},
+    iconName: IconName.circle,
+    iconClass: {'kd-muted': true},
+    iconTooltip: 'Unrecognized',
   };
-
-  protected icon = IconName;
-
-  expandedRowKey: string = undefined;
-  hoveredRowKey: string = undefined;
 
   protected constructor(
     stateName: string,
@@ -444,8 +450,8 @@ export abstract class ResourceListWithStatuses<T extends ResourceList, R extends
     return false;
   }
 
-  protected registerBinding(iconName: IconName, iconClass: string, callbackFunction: StatusCheckCallback<R>): void {
-    const icon = new Icon(String(iconName), iconClass);
+  protected registerBinding(iconClass: string, callbackFunction: StatusCheckCallback<R>, status = ''): void {
+    const icon = new Icon(IconName.circle, iconClass, status);
     this.bindings_[icon.hash()] = {icon, callbackFunction};
   }
 
@@ -453,6 +459,7 @@ export abstract class ResourceListWithStatuses<T extends ResourceList, R extends
     return {
       iconName: stateBinding.icon.name,
       iconClass: {[stateBinding.icon.cssClass]: true},
+      iconTooltip: stateBinding.icon.tooltip,
     };
   }
 }
@@ -460,12 +467,12 @@ export abstract class ResourceListWithStatuses<T extends ResourceList, R extends
 interface StatusIcon {
   iconName: string;
   iconClass: {[className: string]: boolean};
+  iconTooltip: string;
 }
 
 enum IconName {
   error = 'error',
-  timelapse = 'timelapse',
-  checkCircle = 'check_circle',
+  circle = 'fiber_manual_record',
   help = 'help',
   warning = 'warning',
   none = '',
@@ -474,10 +481,12 @@ enum IconName {
 class Icon {
   name: string;
   cssClass: string;
+  tooltip: string;
 
-  constructor(name: string, cssClass: string) {
+  constructor(name: string, cssClass: string, tooltip: string) {
     this.name = name;
     this.cssClass = cssClass;
+    this.tooltip = tooltip;
   }
 
   /**
@@ -485,7 +494,7 @@ class Icon {
    * http://www.cse.yorku.ca/~oz/hash.html
    */
   hash(): number {
-    const value = `${this.name}#${this.cssClass}`;
+    const value = `${this.name}#${this.cssClass}#${this.tooltip}`;
     return value
       .split('')
       .map(str => {

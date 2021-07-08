@@ -14,7 +14,8 @@
 
 import {Component, Input} from '@angular/core';
 import {MatTableDataSource} from '@angular/material/table';
-import {SupportedResources, VolumeMounts} from '@api/root.api';
+import {VolumeMounts} from '@api/root.api';
+import {SupportedResources} from '@api/root.shared';
 import {PersistentVolumeSource} from '@api/volume.api';
 import {KdStateService} from '../../services/global/state';
 
@@ -51,12 +52,20 @@ export class VolumeMountComponent {
   }
 
   getMountTypeFromVolume(volume: PersistentVolumeSource): string {
+    if (!volume) {
+      return '-';
+    }
+
     // This is to make sure that volume is an actual class instance with all methods.
     volume = new PersistentVolumeSource(volume);
     return volume.source ? volume.source.mountType : '-';
   }
 
   getNameFromVolume(volume: PersistentVolumeSource): string {
+    if (!volume) {
+      return '-';
+    }
+
     // This is to make sure that volume is an actual class instance with all methods.
     volume = new PersistentVolumeSource(volume);
     return volume.source ? volume.source.displayName : '-';

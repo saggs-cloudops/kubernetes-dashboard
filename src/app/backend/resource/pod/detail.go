@@ -46,6 +46,7 @@ type PodDetail struct {
 	PodPhase                  string                                          `json:"podPhase"`
 	PodIP                     string                                          `json:"podIP"`
 	NodeName                  string                                          `json:"nodeName"`
+	ServiceAccountName        string                                          `json:"serviceAccountName"`
 	RestartCount              int32                                           `json:"restartCount"`
 	QOSClass                  string                                          `json:"qosClass"`
 	Controller                *controller.ResourceOwner                       `json:"controller,omitempty"`
@@ -56,6 +57,7 @@ type PodDetail struct {
 	ImagePullSecrets          []v1.LocalObjectReference                       `json:"imagePullSecrets,omitempty"`
 	EventList                 common.EventList                                `json:"eventList"`
 	PersistentvolumeclaimList persistentvolumeclaim.PersistentVolumeClaimList `json:"persistentVolumeClaimList"`
+	SecurityContext           *v1.PodSecurityContext                          `json:"securityContext"`
 
 	// List of non-critical errors, that occurred during resource retrieval.
 	Errors []error `json:"errors"`
@@ -83,6 +85,14 @@ type Container struct {
 
 	// Security configuration that will be applied to a container.
 	SecurityContext *v1.SecurityContext `json:"securityContext"`
+
+	// Status of a pod container
+	Status *v1.ContainerStatus `json:"status"`
+
+	// Probes
+	LivenessProbe  *v1.Probe `json:"livenessProbe"`
+	ReadinessProbe *v1.Probe `json:"readinessProbe"`
+	StartupProbe   *v1.Probe `json:"startupProbe"`
 }
 
 // EnvVar represents an environment variable of a container.
@@ -256,6 +266,10 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 			Args:            container.Args,
 			VolumeMounts:    volume_mounts,
 			SecurityContext: container.SecurityContext,
+			Status:          extractContainerStatus(pod, &container),
+			LivenessProbe:   container.LivenessProbe,
+			ReadinessProbe:  container.ReadinessProbe,
+			StartupProbe:    container.StartupProbe,
 		})
 	}
 	return containers
@@ -272,6 +286,7 @@ func toPodDetail(pod *v1.Pod, metrics []metricapi.Metric, configMaps *v1.ConfigM
 		RestartCount:              getRestartCount(*pod),
 		QOSClass:                  string(pod.Status.QOSClass),
 		NodeName:                  pod.Spec.NodeName,
+		ServiceAccountName:        pod.Spec.ServiceAccountName,
 		Controller:                controller,
 		Containers:                extractContainerInfo(pod.Spec.Containers, pod, configMaps, secrets),
 		InitContainers:            extractContainerInfo(pod.Spec.InitContainers, pod, configMaps, secrets),
@@ -280,6 +295,7 @@ func toPodDetail(pod *v1.Pod, metrics []metricapi.Metric, configMaps *v1.ConfigM
 		ImagePullSecrets:          pod.Spec.ImagePullSecrets,
 		EventList:                 *events,
 		PersistentvolumeclaimList: *persistentVolumeClaimList,
+		SecurityContext:           pod.Spec.SecurityContext,
 		Errors:                    nonCriticalErrors,
 	}
 }
@@ -417,4 +433,14 @@ func extractContainerResourceValue(fs *v1.ResourceFieldSelector, container *v1.C
 	}
 
 	return "", fmt.Errorf("Unsupported container resource : %v", fs.Resource)
+}
+
+func extractContainerStatus(pod *v1.Pod, container *v1.Container) *v1.ContainerStatus {
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Name == container.Name {
+			return &status
+		}
+	}
+
+	return nil
 }

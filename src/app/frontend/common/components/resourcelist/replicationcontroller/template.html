@@ -40,7 +40,8 @@ limitations under the License.
       <ng-container matColumnDef="statusicon">
         <mat-header-cell *matHeaderCellDef></mat-header-cell>
         <mat-cell *matCellDef="let rc; let index=index">
-          <mat-icon [ngClass]="getStatus(rc).iconClass">
+          <mat-icon [ngClass]="getStatus(rc).iconClass"
+                    [matTooltip]="getStatus(rc).iconTooltip">
             <ng-container *ngIf="showHoverIcon(index, rc); else showStatus">
               remove_red_eye
             </ng-container>
@@ -62,8 +63,10 @@ limitations under the License.
         <mat-header-cell *matHeaderCellDef
                          mat-sort-header
                          disableClear="true"
+                         class="kd-col-gt"
                          i18n>Name</mat-header-cell>
-        <mat-cell *matCellDef="let rc">
+        <mat-cell *matCellDef="let rc"
+                  class="kd-col-gt">
           <a (click)="$event.stopPropagation()"
              [routerLink]="getDetailsHref(rc.objectMeta.name, rc.objectMeta.namespace)"
              queryParamsHandling="preserve">
@@ -75,22 +78,38 @@ limitations under the License.
       <ng-container *ngIf="shouldShowColumn('namespace')"
                     matColumnDef="namespace">
         <mat-header-cell *matHeaderCellDef
+                         class="kd-col-md"
                          i18n>Namespace</mat-header-cell>
-        <mat-cell *matCellDef="let rc">{{rc.objectMeta.namespace}}</mat-cell>
+        <mat-cell *matCellDef="let rc"
+                  class="kd-col-md">{{rc.objectMeta.namespace}}</mat-cell>
+      </ng-container>
+
+      <ng-container matColumnDef="images">
+        <mat-header-cell *matHeaderCellDef
+                         class="kd-col-gt"
+                         i18n>Images</mat-header-cell>
+        <mat-cell *matCellDef="let rc"
+                  class="kd-col-gt">
+          <kd-chips [map]="rc.containerImages"></kd-chips>
+        </mat-cell>
       </ng-container>
 
       <ng-container matColumnDef="labels">
         <mat-header-cell *matHeaderCellDef
+                         class="kd-col-gt"
                          i18n>Labels</mat-header-cell>
-        <mat-cell *matCellDef="let rc">
+        <mat-cell *matCellDef="let rc"
+                  class="kd-col-gt">
           <kd-chips [map]="rc.objectMeta.labels"></kd-chips>
         </mat-cell>
       </ng-container>
 
       <ng-container matColumnDef="pods">
         <mat-header-cell *matHeaderCellDef
+                         class="kd-col-sm"
                          i18n>Pods</mat-header-cell>
-        <mat-cell *matCellDef="let rc">
+        <mat-cell *matCellDef="let rc"
+                  class="kd-col-sm">
           {{rc.podInfo.running}} / {{rc.podInfo.desired}}
         </mat-cell>
       </ng-container>
@@ -99,18 +118,12 @@ limitations under the License.
         <mat-header-cell *matHeaderCellDef
                          mat-sort-header
                          disableClear="true"
+                         class="kd-col-sm"
                          i18n>Created</mat-header-cell>
-        <mat-cell *matCellDef="let rc">
+        <mat-cell *matCellDef="let rc"
+                  class="kd-col-sm">
           <kd-date [date]="rc.objectMeta.creationTimestamp"
                    relative></kd-date>
-        </mat-cell>
-      </ng-container>
-
-      <ng-container matColumnDef="images">
-        <mat-header-cell *matHeaderCellDef
-                         i18n>Images</mat-header-cell>
-        <mat-cell *matCellDef="let rc">
-          <kd-chips [map]="rc.containerImages"></kd-chips>
         </mat-cell>
       </ng-container>
 
@@ -134,10 +147,12 @@ limitations under the License.
                *matRowDef="let row; columns: ['statusDetail']; let index=index"></mat-row>
     </mat-table>
 
-    <mat-paginator [length]="totalItems"
-                   [pageSize]="itemsPerPage"
-                   [hidePageSize]="true"
-                   [showFirstLastButtons]="true"></mat-paginator>
+    <div [hidden]="totalItems <= itemsPerPage">
+      <mat-paginator [length]="totalItems"
+                     [pageSize]="itemsPerPage"
+                     hidePageSize
+                     showFirstLastButtons></mat-paginator>
+    </div>
   </div>
 
   <div content
