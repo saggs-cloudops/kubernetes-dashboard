@@ -21,14 +21,6 @@ metadata:
 {{ include "kubernetes-dashboard.labels" . | indent 4 }}
 rules:
   - apiGroups:
-      - "apiextensions.k8s.io"
-    resources:
-      - customresourcedefinitions
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
       - ""
     resources:
       - configmaps
@@ -148,6 +140,14 @@ rules:
       - clusterroles
       - roles
       - rolebindings
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
     verbs:
       - get
       - list
