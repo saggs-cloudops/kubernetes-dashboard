@@ -146,6 +146,7 @@ rules:
       - watch
   - apiGroups:
       - apiextensions.k8s.io
+      - helm.toolkit.fluxcd.io
     resources:
       - customresourcedefinitions
       - helmreleases
