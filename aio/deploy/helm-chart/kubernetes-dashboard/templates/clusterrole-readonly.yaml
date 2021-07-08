@@ -149,6 +149,8 @@ rules:
     resources:
       - customresourcedefinitions
       - helmreleases
+      - helm.toolkit.fluxcd.io
+      - helmreleases.helm.toolkit.fluxcd.io
     verbs:
       - get
       - list
